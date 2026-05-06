@@ -177,3 +177,102 @@ canvas { display: block; }
   transform: translateY(-1px);
   box-shadow: 0 8px 20px rgba(255, 122, 48, 0.4);
 }
+
+.movie-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.75);
+  backdrop-filter: blur(8px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 60;
+  animation: ring-modal-fade 0.25s ease-out;
+}
+
+.movie-modal {
+  display: flex;
+  flex-direction: row;
+  max-width: 700px;
+  margin: 0 24px;
+  background: linear-gradient(180deg, rgba(30, 35, 45, 0.95), rgba(15, 20, 25, 0.95));
+  border: 1px solid rgba(0, 212, 255, 0.5);
+  border-radius: 16px;
+  overflow: hidden;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.8), 0 0 30px rgba(0, 212, 255, 0.2);
+  animation: ring-modal-rise 0.3s ease-out;
+  color: #f4ece0;
+  font-family: sans-serif;
+}
+
+.movie-modal-poster {
+  width: 250px;
+  object-fit: cover;
+  border-right: 1px solid rgba(0, 212, 255, 0.3);
+}
+
+.movie-modal-info {
+  padding: 30px;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
+  flex: 1;
+}
+
+.movie-modal-title {
+  font-size: 24px;
+  font-weight: 800;
+  color: #00d4ff;
+  margin-bottom: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.movie-modal-rating {
+  font-size: 16px;
+  font-weight: bold;
+  color: #ffb070;
+  margin-bottom: 20px;
+}
+
+.movie-modal-overview {
+  font-size: 15px;
+  line-height: 1.6;
+  color: #cbd5e1;
+  margin-bottom: 30px;
+  flex-grow: 1;
+}
+
+.movie-modal-close {
+  appearance: none;
+  align-self: flex-start;
+  border: 1px solid rgba(0, 212, 255, 0.6);
+  background: linear-gradient(180deg, rgba(0, 212, 255, 0.2), rgba(0, 150, 255, 0.2));
+  color: #fff;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  padding: 10px 24px;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 14px;
+  text-transform: uppercase;
+  transition: all 0.2s ease;
+}
+
+.movie-modal-close:hover {
+  background: linear-gradient(180deg, rgba(0, 212, 255, 0.4), rgba(0, 150, 255, 0.4));
+  box-shadow: 0 0 15px rgba(0, 212, 255, 0.3);
+}
+
+@media (max-width: 600px) {
+  .movie-modal {
+    flex-direction: column;
+    max-width: 400px;
+  }
+  .movie-modal-poster {
+    width: 100%;
+    height: 200px;
+    border-right: none;
+    border-bottom: 1px solid rgba(0, 212, 255, 0.3);
+  }
+}

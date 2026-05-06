@@ -5,12 +5,6 @@ import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js'
 import './ThreeScene.css'
 
 // ─── Données ──────────────────────────────────────────────────────────────────
-const ANSWERS = [
-  'Film 1',  'Film 2',  'Film 3',  'Film 4',  'Film 5',  'Film 6',
-  'Film 7',  'Film 8',  'Film 9',  'Film 10', 'Film 11', 'Film 12',
-  'Film 13', 'Film 14', 'Film 15', 'Film 16', 'Film 17', 'Film 18',
-  'Film 19', 'Film 20',
-]
 
 const W = 1.2
 const H = 1.2
@@ -44,6 +38,7 @@ export default function ThreeScene() {
   const [feedbackType, setFeedbackType] = useState('')
   const [showCityHint, setShowCityHint] = useState(true)
   const [showRingModal, setShowRingModal] = useState(false)
+  const [movieDetails, setMovieDetails] = useState(null)
   const enterRingRef = useRef(() => {})
 
   useEffect(() => {
@@ -96,23 +91,6 @@ export default function ThreeScene() {
 
     // ─── Modèle GLTF ──────────────────────────────────────────────────────────
     const gltfLoader  = new GLTFLoader()
-
-
-    const donatello  = new THREE.Group()
-    scene.add(donatello)
-    gltfLoader.load('assets/model/tmnt_donatello_fortnite.glb', (gltf) => {
-      const model = gltf.scene
-      model.scale.set(2.5, 2.5, 2.5)
-      donatello.add(model)
-    })
-
-      const naruto  = new THREE.Group()
-    scene.add(naruto)
-    gltfLoader.load('assets/model/naruto_headband.glb', (gltf) => {
-      const model = gltf.scene
-      model.scale.set(3.5, 3.5, 3.5)
-      naruto.add(model)
-    })
 
     // ─── Sensei contrôlable (modèle GLB) ──────────────────────────────────────
     const sensei = new THREE.Group()
@@ -1223,7 +1201,23 @@ export default function ThreeScene() {
       'game_of_death_nunchaku.glb',
       'mortal_kombat_logo.glb',
       'scouter.glb',
+      'naruto_headband.glb',
+      'tmnt_donatello_fortnite.glb',
+      'boxing_glove.glb',
+      'kill_bill_-_katana_sgp.glb',
     ]
+
+    const MODEL_ANSWERS = {
+      '4_wooden_man_3december2019.glb': 'Ip Man',
+      'arcade_machine_street_fighter.glb': 'Street Fighter',
+      'game_of_death_nunchaku.glb': 'Game of Death',
+      'mortal_kombat_logo.glb': 'Mortal Kombat',
+      'scouter.glb': 'Dragon Ball Z',
+      'naruto_headband.glb': 'Naruto',
+      'tmnt_donatello_fortnite.glb': 'Ninja Turtles',
+      'boxing_glove.glb': 'Rocky',
+      'kill_bill_-_katana_sgp.glb': 'Kill Bill',
+    }
 
     const WALL_CFG = [
       { varAxis: 'x', fixed: -WALL_DIST, fixAxis: 'z', rotY: 0             },
@@ -1277,6 +1271,8 @@ export default function ThreeScene() {
       halo.position.y = pedestal.position.y + 0.08
       container.add(halo)
 
+      const glbFile = GLB_FILES[i % GLB_FILES.length]
+
       container.userData.isSquare   = true
       container.userData.originPos  = pos.clone()
       container.userData.targetPos  = pos.clone()
@@ -1284,7 +1280,7 @@ export default function ThreeScene() {
       container.userData.originRotY = cfg.rotY
       container.userData.targetRotX = 0
       container.userData.targetRotY = cfg.rotY
-      container.userData.answer     = ANSWERS[i] ?? `Film ${i + 1}`
+      container.userData.answer     = MODEL_ANSWERS[glbFile]
       container.userData.solved     = false
       container.userData.pedestalMat = pedestalMat
       container.userData.haloMat    = haloMat
@@ -1293,7 +1289,6 @@ export default function ThreeScene() {
       squares.push(container)
 
       // Chargement async du GLB — l'auto-fit normalise chaque modèle à ITEM_SIZE
-      const glbFile = GLB_FILES[i % GLB_FILES.length]
       gltfLoader.load(`assets/model/${glbFile}`, (gltf) => {
         const model = gltf.scene
         const box   = new THREE.Box3().setFromObject(model)
@@ -1382,8 +1377,28 @@ export default function ThreeScene() {
         activeSquare.userData.haloMat.color.setHex(COLOR_OK)
         activeSquare.userData.haloMat.opacity = 0.85
         activeSquare.userData.solved = true
-        setFeedbackMsg('Correct !')
+        setFeedbackMsg('Recherche...')
         setFeedbackType('ok')
+
+        const sq = activeSquare
+        const query = encodeURIComponent(sq.userData.answer)
+        const API_KEY = '66128f961362f8fcafe13e46e1475db1'
+        
+        fetch(`https://api.themoviedb.org/3/search/movie?api_key=${API_KEY}&query=${query}&language=fr-FR`)
+          .then(res => res.json())
+          .then(data => {
+            if (data.results && data.results.length > 0) {
+              setMovieDetails(data.results[0])
+            } else {
+              setMovieDetails({ title: sq.userData.answer, overview: 'Détails non trouvés sur TMDB.', vote_average: 'N/A' })
+            }
+            closeActive()
+          })
+          .catch(err => {
+            console.error('Erreur API TMDB', err)
+            closeActive()
+          })
+
       } else {
         if (!activeSquare.userData.solved) {
           activeSquare.userData.pedestalMat.color.setHex(COLOR_KO)
@@ -1401,9 +1416,8 @@ export default function ThreeScene() {
             sq.userData.haloMat.opacity = 0.0
           }
         }, 1800)
+        feedbackTimer = setTimeout(closeActive, 1800)
       }
-
-      feedbackTimer = setTimeout(closeActive, 1800)
     }
 
     // Expose pour les événements React
@@ -1756,6 +1770,28 @@ export default function ThreeScene() {
             >
               Entrer dans le ring
             </button>
+          </div>
+        </div>
+      )}
+
+      {movieDetails && (
+        <div className="movie-modal-backdrop">
+          <div className="movie-modal">
+            {movieDetails.poster_path && (
+              <img 
+                src={`https://image.tmdb.org/t/p/w500${movieDetails.poster_path}`} 
+                alt={movieDetails.title} 
+                className="movie-modal-poster"
+              />
+            )}
+            <div className="movie-modal-info">
+              <h2 className="movie-modal-title">{movieDetails.title}</h2>
+              <div className="movie-modal-rating">⭐ {movieDetails.vote_average ? Number(movieDetails.vote_average).toFixed(1) : 'N/A'}/10</div>
+              <p className="movie-modal-overview">{movieDetails.overview || "Aucun synopsis disponible."}</p>
+              <button className="movie-modal-close" onClick={() => setMovieDetails(null)}>
+                Continuer
+              </button>
+            </div>
           </div>
         </div>
       )}
