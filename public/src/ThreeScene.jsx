@@ -1555,6 +1555,7 @@ export default function ThreeScene() {
 
     // Init position caméra initiale
     camera.position.set(sensei.position.x, sensei.position.y + 3, sensei.position.z + 8)
+    const previousSenseiPos = new THREE.Vector3().copy(sensei.position)
 
     function animate() {
       rafId = requestAnimationFrame(animate)
@@ -1593,8 +1594,8 @@ export default function ThreeScene() {
           sensei.position.x = THREE.MathUtils.clamp(sensei.position.x, -ROOM_HALF, ROOM_HALF)
           sensei.position.z = THREE.MathUtils.clamp(sensei.position.z, -ROOM_HALF, ROOM_HALF)
           
-          // Rotation fluide du personnage
-          const targetAngle = Math.atan2(moveDir.x, moveDir.z)
+          // Rotation fluide du personnage (ajout de Math.PI car le modèle est retourné)
+          const targetAngle = Math.atan2(moveDir.x, moveDir.z) + Math.PI
           let diff = targetAngle - sensei.rotation.y
           diff = Math.atan2(Math.sin(diff), Math.cos(diff))
           sensei.rotation.y += diff * 0.15
@@ -1614,9 +1615,12 @@ export default function ThreeScene() {
         sq.rotation.y += (sq.userData.targetRotY - sq.rotation.y) * 0.1
       }
 
-      // Mise à jour OrbitControls pour suivre le sensei
+      // Mise à jour OrbitControls et Camera pour suivre le sensei
+      const deltaPos = new THREE.Vector3().subVectors(sensei.position, previousSenseiPos)
+      camera.position.add(deltaPos)
       controls.target.copy(sensei.position).add(new THREE.Vector3(0, 1.5, 0))
       controls.update()
+      previousSenseiPos.copy(sensei.position)
 
       if (activeSquare) updateCardPosition()
       drawHUD()
