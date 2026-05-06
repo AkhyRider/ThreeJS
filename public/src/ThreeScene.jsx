@@ -68,9 +68,13 @@ export default function ThreeScene() {
     renderer.toneMappingExposure = 1.5
     mount.appendChild(renderer.domElement)
 
-    // ─── Follow cam (désactive l'orbite) ──────────────────────────────────────
+    // ─── Caméra 3ème personne ──────────────────────────────────────
     const controls = new OrbitControls(camera, renderer.domElement)
-    controls.enabled = false
+    controls.enableDamping = true
+    controls.dampingFactor = 0.05
+    controls.minDistance = 2
+    controls.maxDistance = 20
+    controls.maxPolarAngle = Math.PI / 2 - 0.05 // Empêcher de passer sous le sol
 
     // ─── Lumières ─────────────────────────────────────────────────────────────
     // Ambiance LED moderne — neutre, légère teinte cyan
@@ -114,12 +118,26 @@ export default function ThreeScene() {
     const sensei = new THREE.Group()
     const SENSEI_HEIGHT = 3.0 // hauteur cible du personnage en unités scène
 
-    // Conteneurs vides (placeholders pour la boucle d'animation legs/bras)
-    const leftLeg  = new THREE.Group()
-    const rightLeg = new THREE.Group()
-    const leftArm  = new THREE.Group()
-    const rightArm = new THREE.Group()
-    sensei.add(leftLeg, rightLeg, leftArm, rightArm)
+    let mixer = null
+    let idleAction = null
+    let walkAction = null
+    let activeAction = null
+
+    // Helper pour changer d'animation de manière fluide
+    function fadeToAction(action, duration) {
+      if (!action || action === activeAction) return;
+      let previousAction = activeAction;
+      activeAction = action;
+      if (previousAction) {
+        previousAction.fadeOut(duration);
+      }
+      activeAction
+        .reset()
+        .setEffectiveTimeScale(1)
+        .setEffectiveWeight(1)
+        .fadeIn(duration)
+        .play();
+    }
 
     gltfLoader.load('assets/model/sensei.glb', (gltf) => {
       const model = gltf.scene
@@ -137,6 +155,15 @@ export default function ThreeScene() {
       model.position.y -= box2.min.y // pieds à y=0 (au sol quand sensei.position.y = -3.5)
       model.traverse(o => { if (o.isMesh) o.castShadow = true })
       sensei.add(model)
+
+      if (gltf.animations && gltf.animations.length > 0) {
+        mixer = new THREE.AnimationMixer(model)
+        // L'animation 0 est supposée être Idle, la 1 ou suivante être Walk/Run
+        idleAction = mixer.clipAction(gltf.animations[0])
+        walkAction = gltf.animations.length > 1 ? mixer.clipAction(gltf.animations[1]) : idleAction
+        activeAction = idleAction
+        idleAction.play()
+      }
     })
 
     // Plaque flottante "Maître Sho"
@@ -1523,64 +1550,62 @@ export default function ThreeScene() {
     let rafId
     let walkPhase = 0
 
-    const MOVE_SPEED = 0.22
-    const TURN_SPEED = 0.055
+    const MOVE_SPEED = 0.15
     const ROOM_HALF  = 28
 
-    // Follow cam (au-dessus et légèrement derrière le sensei)
-    const CAM_DIST   = 7
-    const CAM_HEIGHT = 5.5
-    const camTargetPos  = new THREE.Vector3()
-    const camLookTarget = new THREE.Vector3()
-    const lookedAt      = new THREE.Vector3()
-    // init immédiat pour éviter un flash au 1er frame
-    camTargetPos.set(
-      sensei.position.x + Math.sin(sensei.rotation.y) * CAM_DIST,
-      sensei.position.y + CAM_HEIGHT,
-      sensei.position.z + Math.cos(sensei.rotation.y) * CAM_DIST,
-    )
-    camera.position.copy(camTargetPos)
-    lookedAt.copy(sensei.position).add(new THREE.Vector3(0, 1.8, 0))
-    camera.lookAt(lookedAt)
+    // Init position caméra initiale
+    camera.position.set(sensei.position.x, sensei.position.y + 3, sensei.position.z + 8)
 
     function animate() {
       rafId = requestAnimationFrame(animate)
       const t = clock.getElapsedTime()
+      const delta = clock.getDelta() // Pour le mixer d'animations
 
       blueLight.intensity = 12 + Math.sin(t * 0.7) * 2
       redLight.intensity  = 14 + Math.sin(t * 0.5 + 1) * 2
 
-      // ─ Sensei : rotation + déplacement
-      if (keys.left)  sensei.rotation.y += TURN_SPEED
-      if (keys.right) sensei.rotation.y -= TURN_SPEED
+      if (mixer) mixer.update(delta)
 
+      // ─ Sensei : déplacement relatif à la caméra
       let moved = false
-      if (keys.fwd || keys.back) {
-        const dir = keys.fwd ? 1 : -1
-        const nx = sensei.position.x - Math.sin(sensei.rotation.y) * MOVE_SPEED * dir
-        const nz = sensei.position.z - Math.cos(sensei.rotation.y) * MOVE_SPEED * dir
-        sensei.position.x = THREE.MathUtils.clamp(nx, -ROOM_HALF, ROOM_HALF)
-        sensei.position.z = THREE.MathUtils.clamp(nz, -ROOM_HALF, ROOM_HALF)
-        moved = true
+      if (modeRef.current !== 'city') {
+        const moveDir = new THREE.Vector3(0, 0, 0)
+        
+        // Obtenir la direction de la caméra (sans axe Y)
+        const camForward = new THREE.Vector3()
+        camera.getWorldDirection(camForward)
+        camForward.y = 0
+        camForward.normalize()
+        
+        const camRight = new THREE.Vector3()
+        camRight.crossVectors(camForward, new THREE.Vector3(0, 1, 0)).normalize()
+
+        if (keys.fwd)  moveDir.add(camForward)
+        if (keys.back) moveDir.sub(camForward)
+        if (keys.left) moveDir.sub(camRight)
+        if (keys.right) moveDir.add(camRight)
+
+        if (moveDir.length() > 0) {
+          moveDir.normalize()
+          moved = true
+          
+          sensei.position.addScaledVector(moveDir, MOVE_SPEED)
+          sensei.position.x = THREE.MathUtils.clamp(sensei.position.x, -ROOM_HALF, ROOM_HALF)
+          sensei.position.z = THREE.MathUtils.clamp(sensei.position.z, -ROOM_HALF, ROOM_HALF)
+          
+          // Rotation fluide du personnage
+          const targetAngle = Math.atan2(moveDir.x, moveDir.z)
+          let diff = targetAngle - sensei.rotation.y
+          diff = Math.atan2(Math.sin(diff), Math.cos(diff))
+          sensei.rotation.y += diff * 0.15
+        }
       }
 
-      // ─ Animation de course
+      // ─ Animation GLTF (Fade in/out)
       if (moved) {
-        walkPhase += 0.38
-        const swing = Math.sin(walkPhase) * 0.9
-        leftLeg.rotation.x  =  swing
-        rightLeg.rotation.x = -swing
-        leftArm.rotation.x  = -swing * 0.8
-        rightArm.rotation.x =  swing * 0.8
-        // rebond plus marqué
-        sensei.position.y = -3.5 + Math.abs(Math.sin(walkPhase * 2)) * 0.14
+        fadeToAction(walkAction, 0.2)
       } else {
-        // retour progressif à la pose neutre
-        leftLeg.rotation.x  *= 0.85
-        rightLeg.rotation.x *= 0.85
-        leftArm.rotation.x  *= 0.85
-        rightArm.rotation.x *= 0.85
-        sensei.position.y += (-3.5 - sensei.position.y) * 0.2
+        fadeToAction(idleAction, 0.2)
       }
 
       for (const sq of squares) {
@@ -1589,16 +1614,9 @@ export default function ThreeScene() {
         sq.rotation.y += (sq.userData.targetRotY - sq.rotation.y) * 0.1
       }
 
-      // Follow cam : suit le sensei avec un lissage
-      camTargetPos.set(
-        sensei.position.x + Math.sin(sensei.rotation.y) * CAM_DIST,
-        sensei.position.y + CAM_HEIGHT,
-        sensei.position.z + Math.cos(sensei.rotation.y) * CAM_DIST,
-      )
-      camera.position.lerp(camTargetPos, 0.12)
-      camLookTarget.copy(sensei.position).add(new THREE.Vector3(0, 1.8, 0))
-      lookedAt.lerp(camLookTarget, 0.18)
-      camera.lookAt(lookedAt)
+      // Mise à jour OrbitControls pour suivre le sensei
+      controls.target.copy(sensei.position).add(new THREE.Vector3(0, 1.5, 0))
+      controls.update()
 
       if (activeSquare) updateCardPosition()
       drawHUD()
