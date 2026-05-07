@@ -50,6 +50,185 @@ export default function ThreeScene() {
     scene.background = new THREE.Color(0x2a3340)
     scene.fog = new THREE.FogExp2(0x2a3340, 0.008)
 
+    // ─── Système Audio (Web Audio API — procédural, sans fichiers) ────────────
+    let audioCtx = null
+    function getAudioCtx() {
+      if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)()
+      if (audioCtx.state === 'suspended') audioCtx.resume()
+      return audioCtx
+    }
+
+    // Cloche de ring (victoire)
+    function playBell() {
+      const ctx = getAudioCtx()
+      const t = ctx.currentTime
+      const osc = ctx.createOscillator()
+      const gain = ctx.createGain()
+      osc.type = 'sine'
+      osc.frequency.setValueAtTime(880, t)
+      osc.frequency.exponentialRampToValueAtTime(660, t + 0.4)
+      gain.gain.setValueAtTime(0.7, t)
+      gain.gain.exponentialRampToValueAtTime(0.001, t + 2.0)
+      osc.connect(gain); gain.connect(ctx.destination)
+      osc.start(t); osc.stop(t + 2.0)
+      // Harmonique
+      const osc2 = ctx.createOscillator()
+      const gain2 = ctx.createGain()
+      osc2.type = 'sine'
+      osc2.frequency.setValueAtTime(1320, t)
+      osc2.frequency.exponentialRampToValueAtTime(990, t + 0.3)
+      gain2.gain.setValueAtTime(0.35, t)
+      gain2.gain.exponentialRampToValueAtTime(0.001, t + 1.5)
+      osc2.connect(gain2); gain2.connect(ctx.destination)
+      osc2.start(t); osc2.stop(t + 1.5)
+    }
+
+    // Buzzer raté
+    function playBuzzer() {
+      const ctx = getAudioCtx()
+      const t = ctx.currentTime
+      const osc = ctx.createOscillator()
+      const gain = ctx.createGain()
+      osc.type = 'sawtooth'
+      osc.frequency.setValueAtTime(180, t)
+      osc.frequency.linearRampToValueAtTime(90, t + 0.3)
+      gain.gain.setValueAtTime(0.5, t)
+      gain.gain.exponentialRampToValueAtTime(0.001, t + 0.35)
+      osc.connect(gain); gain.connect(ctx.destination)
+      osc.start(t); osc.stop(t + 0.35)
+    }
+
+    // Clic métal (sélection d'un objet)
+    function playClick() {
+      const ctx = getAudioCtx()
+      const t = ctx.currentTime
+      const buf = ctx.createBuffer(1, ctx.sampleRate * 0.06, ctx.sampleRate)
+      const data = buf.getChannelData(0)
+      for (let i = 0; i < data.length; i++) data[i] = (Math.random() * 2 - 1) * (1 - i / data.length)
+      const src = ctx.createBufferSource()
+      src.buffer = buf
+      const filter = ctx.createBiquadFilter()
+      filter.type = 'bandpass'
+      filter.frequency.value = 2400
+      filter.Q.value = 2.0
+      const gain = ctx.createGain()
+      gain.gain.setValueAtTime(0.6, t)
+      src.connect(filter); filter.connect(gain); gain.connect(ctx.destination)
+      src.start(t)
+    }
+
+    // Crowd roar (entrée dans le ring)
+    function playCrowdRoar() {
+      const ctx = getAudioCtx()
+      const t = ctx.currentTime
+      const dur = 2.2
+      const buf = ctx.createBuffer(1, ctx.sampleRate * dur, ctx.sampleRate)
+      const data = buf.getChannelData(0)
+      for (let i = 0; i < data.length; i++) data[i] = Math.random() * 2 - 1
+      const src = ctx.createBufferSource()
+      src.buffer = buf
+      const filter = ctx.createBiquadFilter()
+      filter.type = 'lowpass'
+      filter.frequency.setValueAtTime(300, t)
+      filter.frequency.linearRampToValueAtTime(900, t + dur)
+      const gain = ctx.createGain()
+      gain.gain.setValueAtTime(0.0, t)
+      gain.gain.linearRampToValueAtTime(0.55, t + 0.6)
+      gain.gain.linearRampToValueAtTime(0.25, t + dur)
+      src.connect(filter); filter.connect(gain); gain.connect(ctx.destination)
+      src.start(t)
+      // Gong d'annonce
+      const gong = ctx.createOscillator()
+      const gGain = ctx.createGain()
+      gong.type = 'sine'
+      gong.frequency.setValueAtTime(220, t)
+      gong.frequency.exponentialRampToValueAtTime(110, t + 1.8)
+      gGain.gain.setValueAtTime(0.8, t)
+      gGain.gain.exponentialRampToValueAtTime(0.001, t + 2.0)
+      gong.connect(gGain); gGain.connect(ctx.destination)
+      gong.start(t); gong.stop(t + 2.0)
+    }
+
+    // Whoosh cinématique (fiche film)
+    function playWhoosh() {
+      const ctx = getAudioCtx()
+      const t = ctx.currentTime
+      const dur = 0.5
+      const buf = ctx.createBuffer(1, ctx.sampleRate * dur, ctx.sampleRate)
+      const data = buf.getChannelData(0)
+      for (let i = 0; i < data.length; i++) data[i] = Math.random() * 2 - 1
+      const src = ctx.createBufferSource()
+      src.buffer = buf
+      const filter = ctx.createBiquadFilter()
+      filter.type = 'bandpass'
+      filter.frequency.setValueAtTime(200, t)
+      filter.frequency.exponentialRampToValueAtTime(3000, t + dur)
+      filter.Q.value = 0.5
+      const gain = ctx.createGain()
+      gain.gain.setValueAtTime(0.5, t)
+      gain.gain.exponentialRampToValueAtTime(0.001, t + dur)
+      src.connect(filter); filter.connect(gain); gain.connect(ctx.destination)
+      src.start(t)
+    }
+
+    // Pas (footstep) — sol béton sourd
+    let lastStepTime = 0
+    function playFootstep() {
+      const ctx = getAudioCtx()
+      const now = ctx.currentTime
+      if (now - lastStepTime < 0.32) return  // throttle
+      lastStepTime = now
+      const buf = ctx.createBuffer(1, ctx.sampleRate * 0.09, ctx.sampleRate)
+      const data = buf.getChannelData(0)
+      for (let i = 0; i < data.length; i++) data[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / data.length, 2)
+      const src = ctx.createBufferSource()
+      src.buffer = buf
+      const filter = ctx.createBiquadFilter()
+      filter.type = 'lowpass'
+      filter.frequency.value = 320
+      const gain = ctx.createGain()
+      gain.gain.setValueAtTime(0.45, now)
+      src.connect(filter); filter.connect(gain); gain.connect(ctx.destination)
+      src.start(now)
+    }
+
+    // Son arcade 8-bit (validation du nom)
+    function playArcadeConfirm() {
+      const ctx = getAudioCtx()
+      const t = ctx.currentTime
+      // Séquence de notes montantes façon jingle d'arcade
+      const notes = [
+        { freq: 523.25, start: 0.00, dur: 0.08 },  // Do5
+        { freq: 659.25, start: 0.08, dur: 0.08 },  // Mi5
+        { freq: 783.99, start: 0.16, dur: 0.08 },  // Sol5
+        { freq: 1046.5, start: 0.24, dur: 0.18 },  // Do6 — note finale plus longue
+      ]
+      for (const note of notes) {
+        const osc = ctx.createOscillator()
+        const gain = ctx.createGain()
+        osc.type = 'square'  // timbre 8-bit carré
+        osc.frequency.value = note.freq
+        gain.gain.setValueAtTime(0.0, t + note.start)
+        gain.gain.linearRampToValueAtTime(0.22, t + note.start + 0.01)
+        gain.gain.exponentialRampToValueAtTime(0.001, t + note.start + note.dur)
+        osc.connect(gain); gain.connect(ctx.destination)
+        osc.start(t + note.start)
+        osc.stop(t + note.start + note.dur + 0.05)
+      }
+      // Coup de caisse claire synthétique (pshh)
+      const nBuf = ctx.createBuffer(1, ctx.sampleRate * 0.08, ctx.sampleRate)
+      const nd = nBuf.getChannelData(0)
+      for (let i = 0; i < nd.length; i++) nd[i] = (Math.random() * 2 - 1) * (1 - i / nd.length)
+      const nSrc = ctx.createBufferSource()
+      nSrc.buffer = nBuf
+      const nFilt = ctx.createBiquadFilter()
+      nFilt.type = 'highpass'; nFilt.frequency.value = 6000
+      const nGain = ctx.createGain()
+      nGain.gain.setValueAtTime(0.15, t + 0.24)
+      nSrc.connect(nFilt); nFilt.connect(nGain); nGain.connect(ctx.destination)
+      nSrc.start(t + 0.24)
+    }
+
     const camera = new THREE.PerspectiveCamera(55, mount.clientWidth / mount.clientHeight, 0.1, 100)
     camera.position.set(0, 3, 14)
     camera.lookAt(0, 0, 0)
@@ -1342,6 +1521,8 @@ export default function ThreeScene() {
       clearTimeout(feedbackTimer)
       activeSquare = sq
 
+      playClick()
+
       const forward = new THREE.Vector3()
       camera.getWorldDirection(forward)
       activeSquare.userData.targetPos.copy(activeSquare.userData.originPos).addScaledVector(forward, -4)
@@ -1367,6 +1548,7 @@ export default function ThreeScene() {
     function checkAnswer() {
       if (!activeSquare) return
       clearTimeout(feedbackTimer)
+      playArcadeConfirm()
 
       const typed    = nameInputRef.current?.value.trim().toLowerCase() ?? ''
       const expected = activeSquare.userData.answer.toLowerCase()
@@ -1384,6 +1566,8 @@ export default function ThreeScene() {
         const query = encodeURIComponent(sq.userData.answer)
         const API_KEY = '66128f961362f8fcafe13e46e1475db1'
         
+        playBell()
+
         fetch(`https://api.themoviedb.org/3/search/movie?api_key=${API_KEY}&query=${query}&language=fr-FR`)
           .then(res => res.json())
           .then(data => {
@@ -1392,6 +1576,7 @@ export default function ThreeScene() {
             } else {
               setMovieDetails({ title: sq.userData.answer, overview: 'Détails non trouvés sur TMDB.', vote_average: 'N/A' })
             }
+            playWhoosh()
             closeActive()
           })
           .catch(err => {
@@ -1406,6 +1591,7 @@ export default function ThreeScene() {
           activeSquare.userData.haloMat.color.setHex(COLOR_KO)
           activeSquare.userData.haloMat.opacity = 0.85
         }
+        playBuzzer()
         setFeedbackMsg(`C'était : ${activeSquare.userData.answer}`)
         setFeedbackType('ko')
         const sq = activeSquare
@@ -1475,6 +1661,7 @@ export default function ThreeScene() {
         sensei.rotation.y = Math.atan2(-sensei.position.x, -sensei.position.z) + Math.PI
         setShowCityHint(false)
         setShowRingModal(false)
+        playCrowdRoar()
       }
     }
     enterRingRef.current = () => setMode('gym')
@@ -1613,6 +1800,8 @@ export default function ThreeScene() {
           let diff = targetAngle - sensei.rotation.y
           diff = Math.atan2(Math.sin(diff), Math.cos(diff))
           sensei.rotation.y += diff * 0.15
+
+          playFootstep()
         }
       }
 
@@ -1724,17 +1913,194 @@ export default function ThreeScene() {
       ctx.restore()
     }
 
+    // ─── Musique de fond arcade / DBZ ─────────────────────────────────────────
+    // Mélodie pentatonique héroïque (inspirée DBZ), générée 100% en Web Audio API
+    let bgMusicStarted = false
+    let bgMusicGain = null
+    let bgSchedulerTimer = null
+
+    function startBackgroundMusic() {
+      if (bgMusicStarted) return
+      bgMusicStarted = true
+
+      const ctx = getAudioCtx()
+
+      // Master gain — fade-in progressif (discret, ne couvre pas les sons de jeu)
+      bgMusicGain = ctx.createGain()
+      bgMusicGain.gain.setValueAtTime(0, ctx.currentTime)
+      bgMusicGain.gain.linearRampToValueAtTime(0.14, ctx.currentTime + 4)
+      bgMusicGain.connect(ctx.destination)
+
+      // Réverb légère via ConvolverNode synthétique
+      const reverbBuf = ctx.createBuffer(2, ctx.sampleRate * 1.5, ctx.sampleRate)
+      for (let c = 0; c < 2; c++) {
+        const d = reverbBuf.getChannelData(c)
+        for (let i = 0; i < d.length; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / d.length, 2.5)
+      }
+      const reverb = ctx.createConvolver()
+      reverb.buffer = reverbBuf
+      const reverbGain = ctx.createGain(); reverbGain.gain.value = 0.22
+      reverb.connect(reverbGain); reverbGain.connect(bgMusicGain)
+
+      const BPM  = 126
+      const beat = 60 / BPM       // durée d'un temps (s)
+      const bar  = beat * 4       // durée d'une mesure (s)
+
+      // Progression harmonique (Am → F → C → E) — feel épique DBZ
+      const chords = [
+        { root: 110.00, third: 130.81, fifth: 164.81 },  // Am
+        {  root: 87.31, third: 110.00, fifth: 130.81 },  // F
+        { root: 130.81, third: 164.81, fifth: 196.00 },  // C
+        {  root: 82.41, third: 103.83, fifth: 123.47 },  // E
+      ]
+
+      // Mélodie pentatonique sol mineur — phrasé montant/descendant héroïque
+      const melody = [
+        392.00, 466.16, 523.25, 587.33, 659.25,  // montée
+        587.33, 523.25, 466.16,                   // descente partielle
+        392.00, 440.00, 523.25, 587.33,           // second motif
+        659.25, 587.33, 523.25, 392.00,           // résolution
+      ]
+
+      let barIndex   = 0
+      let melodyPtr  = 0
+      let nextTime   = ctx.currentTime + 0.05
+
+      function scheduleBar() {
+        const chord = chords[barIndex % chords.length]
+        const t     = nextTime
+
+        // ── Pad (cordes/synthé éthéré)
+        for (const freq of [chord.root, chord.third, chord.fifth, chord.fifth * 2]) {
+          const osc = ctx.createOscillator()
+          const g   = ctx.createGain()
+          osc.type = 'sine'
+          osc.frequency.value = freq
+          g.gain.setValueAtTime(0, t)
+          g.gain.linearRampToValueAtTime(0.055, t + 0.4)
+          g.gain.setValueAtTime(0.055, t + bar - 0.35)
+          g.gain.linearRampToValueAtTime(0, t + bar + 0.1)
+          osc.connect(g); g.connect(reverb); g.connect(bgMusicGain)
+          osc.start(t); osc.stop(t + bar + 0.2)
+        }
+
+        // ── Basse (triangle, punch)
+        for (const off of [0, beat * 1.5, beat * 2, beat * 3]) {
+          const osc = ctx.createOscillator()
+          const g   = ctx.createGain()
+          osc.type = 'triangle'
+          osc.frequency.setValueAtTime(chord.root, t + off)
+          osc.frequency.exponentialRampToValueAtTime(chord.root * 0.9, t + off + 0.18)
+          g.gain.setValueAtTime(0.32, t + off)
+          g.gain.exponentialRampToValueAtTime(0.001, t + off + 0.28)
+          osc.connect(g); g.connect(bgMusicGain)
+          osc.start(t + off); osc.stop(t + off + 0.32)
+        }
+
+        // ── Kick (beats 1 & 3)
+        for (const off of [0, beat * 2]) {
+          const osc = ctx.createOscillator()
+          const g   = ctx.createGain()
+          osc.type = 'sine'
+          osc.frequency.setValueAtTime(180, t + off)
+          osc.frequency.exponentialRampToValueAtTime(36, t + off + 0.18)
+          g.gain.setValueAtTime(0.55, t + off)
+          g.gain.exponentialRampToValueAtTime(0.001, t + off + 0.22)
+          osc.connect(g); g.connect(bgMusicGain)
+          osc.start(t + off); osc.stop(t + off + 0.25)
+        }
+
+        // ── Snare (beat 2 & 4)
+        for (const off of [beat, beat * 3]) {
+          const buf  = ctx.createBuffer(1, ctx.sampleRate * 0.12, ctx.sampleRate)
+          const data = buf.getChannelData(0)
+          for (let i = 0; i < data.length; i++) data[i] = (Math.random() * 2 - 1) * (1 - i / data.length)
+          const src  = ctx.createBufferSource(); src.buffer = buf
+          const filt = ctx.createBiquadFilter(); filt.type = 'bandpass'; filt.frequency.value = 1800; filt.Q.value = 0.7
+          const g    = ctx.createGain(); g.gain.setValueAtTime(0.18, t + off); g.gain.exponentialRampToValueAtTime(0.001, t + off + 0.1)
+          src.connect(filt); filt.connect(g); g.connect(bgMusicGain)
+          src.start(t + off)
+        }
+
+        // ── Hi-hat (8th notes)
+        for (let n = 0; n < 8; n++) {
+          const buf  = ctx.createBuffer(1, ctx.sampleRate * 0.04, ctx.sampleRate)
+          const data = buf.getChannelData(0)
+          for (let i = 0; i < data.length; i++) data[i] = (Math.random() * 2 - 1)
+          const src  = ctx.createBufferSource(); src.buffer = buf
+          const filt = ctx.createBiquadFilter(); filt.type = 'highpass'; filt.frequency.value = 9000
+          const g    = ctx.createGain()
+          const vel  = n % 2 === 0 ? 0.09 : 0.05
+          g.gain.setValueAtTime(vel, t + beat * n * 0.5)
+          g.gain.exponentialRampToValueAtTime(0.001, t + beat * n * 0.5 + 0.035)
+          src.connect(filt); filt.connect(g); g.connect(bgMusicGain)
+          src.start(t + beat * n * 0.5)
+        }
+
+        // ── Mélodie (carrée, style arcade DBZ)
+        for (let n = 0; n < 8; n++) {
+          const freq = melody[(melodyPtr + n) % melody.length]
+          const osc  = ctx.createOscillator()
+          const g    = ctx.createGain()
+          osc.type = 'square'
+          osc.frequency.value = freq
+          // Légère vibrato
+          const lfo  = ctx.createOscillator()
+          const lfog = ctx.createGain(); lfog.gain.value = 3
+          lfo.frequency.value = 5.5
+          lfo.connect(lfog); lfog.connect(osc.frequency)
+          const noteT = t + beat * n * 0.5
+          g.gain.setValueAtTime(0, noteT)
+          g.gain.linearRampToValueAtTime(0.06, noteT + 0.015)
+          g.gain.setValueAtTime(0.06, noteT + beat * 0.42)
+          g.gain.exponentialRampToValueAtTime(0.001, noteT + beat * 0.48)
+          osc.connect(g); g.connect(reverb); g.connect(bgMusicGain)
+          lfo.start(noteT); osc.start(noteT)
+          lfo.stop(noteT + beat * 0.5); osc.stop(noteT + beat * 0.5 + 0.02)
+        }
+        melodyPtr = (melodyPtr + 8) % melody.length
+
+        nextTime += bar
+        barIndex++
+        // Re-schedule un beat à l'avance pour éviter les coupures
+        bgSchedulerTimer = setTimeout(scheduleBar, (bar - beat * 0.5) * 1000)
+      }
+
+      scheduleBar()
+    }
+
+    function stopBackgroundMusic() {
+      clearTimeout(bgSchedulerTimer)
+      if (bgMusicGain) {
+        const ctx = getAudioCtx()
+        bgMusicGain.gain.setValueAtTime(bgMusicGain.gain.value, ctx.currentTime)
+        bgMusicGain.gain.linearRampToValueAtTime(0, ctx.currentTime + 1.5)
+      }
+    }
+
+    // Démarrage dès la première interaction (contourne l'autoplay des navigateurs)
+    const onFirstInteraction = () => {
+      startBackgroundMusic()
+      window.removeEventListener('keydown',     onFirstInteraction)
+      window.removeEventListener('pointerdown', onFirstInteraction)
+    }
+    window.addEventListener('keydown',     onFirstInteraction)
+    window.addEventListener('pointerdown', onFirstInteraction)
+
     animate()
 
     // ─── Cleanup ──────────────────────────────────────────────────────────────
     return () => {
       cancelAnimationFrame(rafId)
+      stopBackgroundMusic()
       window.removeEventListener('pointerdown', onPointerDown)
       window.removeEventListener('pointermove', onPointerMove)
       window.removeEventListener('pointerup',   onPointerUp)
       window.removeEventListener('resize',      onResize)
       window.removeEventListener('keydown',     onKeyDown)
       window.removeEventListener('keyup',       onKeyUp)
+      window.removeEventListener('keydown',     onFirstInteraction)
+      window.removeEventListener('pointerdown', onFirstInteraction)
       controls.dispose()
       renderer.dispose()
       mount.removeChild(renderer.domElement)
